@@ -68,7 +68,7 @@
   <script>
     let selectedSymbol = localStorage.getItem('selectedSymbol') || 'BTCUSDT';
     let thresholds = JSON.parse(localStorage.getItem('thresholds')) || { min: -2, max: 2 };
-    let chart, candleSeries;
+    let chart, candleSeries, upperLineSeries, lowerLineSeries;
 
     function initChart() {
       chart = LightweightCharts.createChart(document.getElementById('chart'), {
@@ -90,6 +90,7 @@
         width: document.getElementById('chart').clientWidth,
         height: document.getElementById('chart').clientHeight
       });
+
       candleSeries = chart.addCandlestickSeries({
         upColor: '#26a69a',
         downColor: '#ef5350',
@@ -98,6 +99,9 @@
         wickUpColor: '#26a69a',
         wickDownColor: '#ef5350'
       });
+
+      upperLineSeries = chart.addLineSeries({ color: 'green', lineWidth: 1 });
+      lowerLineSeries = chart.addLineSeries({ color: 'red', lineWidth: 1 });
     }
 
     async function fetchCandles() {
@@ -121,11 +125,10 @@
       const price = lastCandle.close;
       const max = price * (1 + thresholds.max / 100);
       const min = price * (1 + thresholds.min / 100);
+      const time = lastCandle.time;
 
-      chart.removeAllOverlays();
-
-      chart.addLineSeries({ color: 'green' }).setData([{ time: lastCandle.time, value: max }]);
-      chart.addLineSeries({ color: 'red' }).setData([{ time: lastCandle.time, value: min }]);
+      upperLineSeries.setData([{ time: time, value: max }]);
+      lowerLineSeries.setData([{ time: time, value: min }]);
     }
 
     function openCryptoPopup() {
