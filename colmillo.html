@@ -13,21 +13,23 @@
       <div id="score" class="absolute top-2 left-2 z-10 text-xl font-bold bg-yellow-300 text-black px-4 py-1 rounded shadow">Puntos: 0</div>
       <img id="colmillo" src="https://static.thenounproject.com/png/1368935-512.png"
            class="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-16 h-16 rounded-full border-2 border-black"
-           alt="Colmillo el Zorrino"/>
+           alt="Colmillo el Zorrino" onerror="handleImageError(this, 'zorrino')"/>
     </div>
     <p class="mt-4 text-center text-lg text-gray-700">Usa las flechas para mover a Colmillo 🦨 y atrapa los caracoles 🐌</p>
   </div>
 
-  <audio id="catchSound" src="https://cdn.jsdelivr.net/gh/CodeExplainedRepo/Sound-Files/catch.mp3" preload="auto"></audio>
+  <audio id="catchSound" src="https://cdn.jsdelivr.net/gh/CodeExplainedRepo/Sound-Files/catch.mp3" preload="auto" onerror="handleAudioError(this)"></audio>
 
   <script>
-    const game = document.getElementById('game'),
-          colmillo = document.getElementById('colmillo'),
-          scoreDisplay = document.getElementById('score'),
-          catchSound = document.getElementById('catchSound');
-    let colmilloX = game.clientWidth / 2 - colmillo.offsetWidth / 2,
-        keys = {}, score = 0, gameInterval, moveInterval;
+    const game = document.getElementById('game');
+    const colmillo = document.getElementById('colmillo');
+    const scoreDisplay = document.getElementById('score');
+    const catchSound = document.getElementById('catchSound');
 
+    let colmilloX = game.clientWidth / 2 - colmillo.offsetWidth / 2;
+    let keys = {}, score = 0, gameInterval, moveInterval;
+
+    // Eventos de teclado
     document.addEventListener('keydown', e => keys[e.key] = true);
     document.addEventListener('keyup', e => keys[e.key] = false);
 
@@ -44,6 +46,8 @@
       const snail = document.createElement('img');
       snail.src = 'https://static.thenounproject.com/png/2503738-512.png';
       snail.className = 'absolute w-12 h-12';
+      snail.alt = 'Caracol';
+      snail.onerror = () => handleImageError(snail, 'caracol');
       snail.style.left = Math.random() * (game.clientWidth - 48) + 'px';
       snail.style.top = '0px';
       game.appendChild(snail);
@@ -55,34 +59,52 @@
       const interval = setInterval(()=>{
         top += 2;
         snail.style.top = top + 'px';
-        const a = snail.getBoundingClientRect(),
-              b = colmillo.getBoundingClientRect();
-        if (a.bottom > b.top && a.top < b.bottom && a.left < b.right && a.right > b.left){
-          clearInterval(interval);
-          snail.remove();
-          catchSound.currentTime = 0;
-          catchSound.play();
-          score++;
-          scoreDisplay.textContent = `Puntos: ${score}`;
-          if (score >= 100) endGame();
-        }
-        if (top > game.clientHeight){
-          clearInterval(interval);
-          snail.remove();
+        try {
+          const a = snail.getBoundingClientRect(), b = colmillo.getBoundingClientRect();
+          if (a.bottom > b.top && a.top < b.bottom && a.left < b.right && a.right > b.left){
+            clearInterval(interval);
+            snail.remove();
+            if (!catchSound.paused) catchSound.pause();
+            catchSound.currentTime = 0;
+            catchSound.play().catch(err => console.warn('Audio playback error:', err));
+            score++;
+            scoreDisplay.textContent = `Puntos: ${score}`;
+            if (score >= 100) endGame();
+          }
+          if (top > game.clientHeight){
+            clearInterval(interval);
+            snail.remove();
+          }
+        } catch (err) {
+          console.error('Error en colisión:', err);
         }
       }, 20);
     }
 
     function startGame(){
       colmillo.style.left = colmilloX + 'px';
-      gameInterval = setInterval(createSnail, 900);
+      try {
+        gameInterval = setInterval(createSnail, 900);
+      } catch (err) {
+        alert('Error al iniciar el juego');
+        console.error(err);
+      }
     }
 
     function endGame(){
       clearInterval(gameInterval);
       clearInterval(moveInterval);
-      alert('¡Colmillo atrapó 100 caracoles! 🎉');
+      alert('🎉 ¡Colmillo atrapó 100 caracoles! 🎉');
       location.reload();
+    }
+
+    function handleImageError(img, tipo){
+      img.remove();
+      alert(`Error al cargar imagen del ${tipo}. Verifica conexión a internet o permisos de GitHub.`);
+    }
+
+    function handleAudioError(audio){
+      alert('Error al cargar el sonido. Asegúrate de estar conectado a internet.');
     }
 
     startGame();
