@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trading Alarm</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.2/dist/lightweight-charts.standalone.production.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -53,7 +53,7 @@
 
     <!-- Trading Live -->
     <div class="flex-1 bg-gray-800 p-4">
-      <canvas id="chart" class="w-full h-full"></canvas>
+      <div id="chart" class="w-full h-full"></div>
     </div>
   </div>
 
@@ -68,97 +68,64 @@
   <script>
     let selectedSymbol = localStorage.getItem('selectedSymbol') || 'BTCUSDT';
     let thresholds = JSON.parse(localStorage.getItem('thresholds')) || { min: -2, max: 2 };
-    let chart, chartData = [], chartLabels = [];
-
-    async function fetchPrice(symbol) {
-      try {
-        const res = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
-        return parseFloat(res.data.price);
-      } catch (e) {
-        console.error("Error de API", e);
-        return null;
-      }
-    }
-
-    async function updateChart() {
-      const price = await fetchPrice(selectedSymbol);
-      if (price) {
-        const time = new Date().toLocaleTimeString();
-        chartData.push(price);
-        chartLabels.push(time);
-        if (chartData.length > 30) {
-          chartData.shift();
-          chartLabels.shift();
-        }
-        chart.data.labels = chartLabels;
-        chart.data.datasets[0].data = chartData;
-        chart.update();
-        drawThresholdLines(price);
-      }
-    }
-
-    function drawThresholdLines(currentPrice) {
-      const maxVal = currentPrice * (1 + thresholds.max / 100);
-      const minVal = currentPrice * (1 + thresholds.min / 100);
-      chart.options.plugins.annotation = {
-        annotations: {
-          line1: {
-            type: 'line',
-            yMin: maxVal,
-            yMax: maxVal,
-            borderColor: 'green',
-            borderWidth: 1,
-            label: {
-              content: `+${thresholds.max}% → $${maxVal.toFixed(2)}`,
-              enabled: true,
-              position: 'start',
-              color: 'white'
-            }
-          },
-          line2: {
-            type: 'line',
-            yMin: minVal,
-            yMax: minVal,
-            borderColor: 'red',
-            borderWidth: 1,
-            label: {
-              content: `${thresholds.min}% → $${minVal.toFixed(2)}`,
-              enabled: true,
-              position: 'start',
-              color: 'white'
-            }
-          }
-        }
-      };
-      chart.update();
-    }
+    let chart, candleSeries;
 
     function initChart() {
-      const ctx = document.getElementById('chart').getContext('2d');
-      chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: chartLabels,
-          datasets: [{
-            label: selectedSymbol,
-            data: chartData,
-            borderColor: '#00ff99',
-            backgroundColor: 'rgba(0,255,153,0.1)',
-            fill: true
-          }]
+      chart = LightweightCharts.createChart(document.getElementById('chart'), {
+        layout: {
+          background: { color: '#1e1e1e' },
+          textColor: 'white',
         },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { labels: { color: 'white' } },
-            annotation: {}
-          },
-          scales: {
-            x: { ticks: { color: 'white' } },
-            y: { ticks: { color: 'white' } }
-          }
-        }
+        grid: {
+          vertLines: { color: '#444' },
+          horzLines: { color: '#444' },
+        },
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+        },
+        priceScale: {
+          borderColor: '#666',
+        },
+        width: document.getElementById('chart').clientWidth,
+        height: document.getElementById('chart').clientHeight
       });
+      candleSeries = chart.addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderUpColor: '#26a69a',
+        borderDownColor: '#ef5350',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350'
+      });
+    }
+
+    async function fetchCandles() {
+      try {
+        const res = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${selectedSymbol}&interval=1m&limit=100`);
+        const formatted = res.data.map(c => ({
+          time: Math.floor(c[0] / 1000),
+          open: parseFloat(c[1]),
+          high: parseFloat(c[2]),
+          low: parseFloat(c[3]),
+          close: parseFloat(c[4])
+        }));
+        candleSeries.setData(formatted);
+        drawThresholdLines(formatted.at(-1));
+      } catch (e) {
+        console.error("Error cargando velas", e);
+      }
+    }
+
+    function drawThresholdLines(lastCandle) {
+      const price = lastCandle.close;
+      const max = price * (1 + thresholds.max / 100);
+      const min = price * (1 + thresholds.min / 100);
+
+      chart.removeAllOverlays();
+
+      chart.addLineSeries({ color: 'green' }).setData([{ time: lastCandle.time, value: max }]);
+      chart.addLineSeries({ color: 'red' }).setData([{ time: lastCandle.time, value: min }]);
     }
 
     function openCryptoPopup() {
@@ -199,9 +166,7 @@
       if (!symbol) return;
       selectedSymbol = symbol;
       localStorage.setItem('selectedSymbol', selectedSymbol);
-      chart.data.datasets[0].label = selectedSymbol;
-      chartData = [];
-      chartLabels = [];
+      fetchCandles();
       closePopup();
     }
 
@@ -209,9 +174,13 @@
       document.getElementById('popup-container').innerHTML = '';
     }
 
+    window.addEventListener('resize', () => {
+      chart.resize(document.getElementById('chart').clientWidth, document.getElementById('chart').clientHeight);
+    });
+
     initChart();
-    setInterval(updateChart, 5000);
-    updateChart();
+    fetchCandles();
+    setInterval(fetchCandles, 60000); // Actualiza cada minuto
   </script>
 </body>
 </html>
