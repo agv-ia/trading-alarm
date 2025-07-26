@@ -1,228 +1,217 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trading Alarm</title>
-  <!-- Charting Library & CSS -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
       background-color: #121212;
-      color: #fff;
+      color: white;
       font-family: Arial, sans-serif;
     }
     .popup {
-      background: #1e1e1e;
-      border: 1px solid #444;
-      padding: 1rem;
-      position: absolute;
-      z-index: 10;
-      top: 50px;
-      left: 50px;
+      position: fixed;
+      top: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #1f1f1f;
+      padding: 20px;
+      border: 1px solid #333;
+      z-index: 100;
       width: 300px;
+    }
+    .btn {
+      background-color: #2d2d2d;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      cursor: pointer;
+      margin: 4px;
+    }
+    .btn:hover {
+      background-color: #444;
     }
     .btn-close {
       float: right;
       cursor: pointer;
     }
-    .btn {
-      background: #2b2b2b;
-      color: white;
-      padding: 0.5rem 1rem;
-      border: none;
-      margin: 0.2rem;
-      cursor: pointer;
-    }
-    .btn:hover {
-      background: #3b3b3b;
-    }
   </style>
 </head>
 <body>
-  <!-- Título -->
-  <div class="text-center text-3xl font-bold py-4 border-b border-gray-700">Trading Alarm</div>
+  <div class="text-center text-2xl font-bold py-4">Trading Alarm</div>
 
-  <div class="flex h-[90vh]">
-    <!-- Trading Data (Izquierda) -->
-    <div class="w-1/5 bg-gray-900 p-2" id="trading-data">
-      <h2 class="text-xl mb-2">Trading Data</h2>
-      <ul id="coin-list"></ul>
+  <div class="flex h-[85vh]">
+    <!-- Trading Data -->
+    <div class="w-1/5 bg-gray-900 p-2 overflow-y-auto">
+      <h2 class="text-lg font-semibold mb-2">Trading Data</h2>
+      <ul id="coin-list" class="text-sm space-y-1"></ul>
     </div>
 
-    <!-- Trading Live (Centro) -->
-    <div class="flex-1 bg-gray-800 p-2" id="trading-live">
-      <canvas id="chart"></canvas>
+    <!-- Trading Live -->
+    <div class="flex-1 bg-gray-800 p-4">
+      <canvas id="chart" class="w-full h-full"></canvas>
     </div>
   </div>
 
-  <!-- Trading Conf (Inferior) -->
-  <div class="h-[12.5vh] bg-gray-900 p-2 flex items-start space-x-2 border-t border-gray-700">
+  <!-- Trading Conf -->
+  <div class="h-[12.5vh] bg-gray-900 p-2 flex space-x-4 border-t border-gray-700">
     <button class="btn" onclick="openCryptoPopup()">Criptomonedas</button>
     <button class="btn" onclick="openThresholdPopup()">Umbrales</button>
-    <button class="btn" onclick="openAlertsPopup()">Alertas</button>
   </div>
 
-  <!-- Popups -->
   <div id="popup-container"></div>
 
   <script>
-    const defaultSymbol = "BTCUSDT";
-    let selectedSymbol = localStorage.getItem("selectedSymbol") || defaultSymbol;
-    let thresholds = JSON.parse(localStorage.getItem("thresholds")) || { min: -2, max: 2 };
-    let chart, chartData = [], thresholdLines = [];
+    let selectedSymbol = localStorage.getItem('selectedSymbol') || 'BTCUSDT';
+    let thresholds = JSON.parse(localStorage.getItem('thresholds')) || { min: -2, max: 2 };
+    let chart, chartData = [], chartLabels = [];
 
     async function fetchPrice(symbol) {
       try {
-        const res = await axios.get(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
-        return res.data;
-      } catch (err) {
-        alert("Error obteniendo datos de Binance. Reintentando...");
-        setTimeout(() => fetchPrice(symbol), 3000);
-        throw err;
+        const res = await axios.get(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+        return parseFloat(res.data.price);
+      } catch (e) {
+        console.error("Error de API", e);
+        return null;
       }
     }
 
-    async function fetchTopCoins() {
-      try {
-        const res = await axios.get("https://api.binance.com/api/v3/ticker/24hr");
-        const topCoins = res.data.filter(c => c.symbol.endsWith("USDT") && c.symbol.length <= 9).slice(0, 20);
-        const list = document.getElementById("coin-list");
-        list.innerHTML = "";
-        topCoins.forEach(c => {
-          const li = document.createElement("li");
-          li.innerText = `${c.symbol}: $${parseFloat(c.lastPrice).toFixed(2)} (${parseFloat(c.priceChangePercent).toFixed(2)}%)`;
-          li.className = "hover:text-yellow-400 cursor-pointer";
-          li.onclick = () => selectCoin(c.symbol);
-          list.appendChild(li);
-        });
-      } catch (err) {
-        alert("No se pudo cargar el listado de monedas.");
+    async function updateChart() {
+      const price = await fetchPrice(selectedSymbol);
+      if (price) {
+        const time = new Date().toLocaleTimeString();
+        chartData.push(price);
+        chartLabels.push(time);
+        if (chartData.length > 30) {
+          chartData.shift();
+          chartLabels.shift();
+        }
+        chart.data.labels = chartLabels;
+        chart.data.datasets[0].data = chartData;
+        chart.update();
+        drawThresholdLines(price);
       }
     }
 
-    async function renderChart(symbol) {
-      const price = await fetchPrice(symbol);
-      const ctx = document.getElementById("chart").getContext("2d");
-      if (chart) chart.destroy();
-      chartData = [parseFloat(price.lastPrice)];
+    function drawThresholdLines(currentPrice) {
+      const maxVal = currentPrice * (1 + thresholds.max / 100);
+      const minVal = currentPrice * (1 + thresholds.min / 100);
+      chart.options.plugins.annotation = {
+        annotations: {
+          line1: {
+            type: 'line',
+            yMin: maxVal,
+            yMax: maxVal,
+            borderColor: 'green',
+            borderWidth: 1,
+            label: {
+              content: `+${thresholds.max}% → $${maxVal.toFixed(2)}`,
+              enabled: true,
+              position: 'start',
+              color: 'white'
+            }
+          },
+          line2: {
+            type: 'line',
+            yMin: minVal,
+            yMax: minVal,
+            borderColor: 'red',
+            borderWidth: 1,
+            label: {
+              content: `${thresholds.min}% → $${minVal.toFixed(2)}`,
+              enabled: true,
+              position: 'start',
+              color: 'white'
+            }
+          }
+        }
+      };
+      chart.update();
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('chart').getContext('2d');
       chart = new Chart(ctx, {
-        type: "line",
+        type: 'line',
         data: {
-          labels: [new Date().toLocaleTimeString()],
+          labels: chartLabels,
           datasets: [{
-            label: `${symbol} Price`,
+            label: selectedSymbol,
             data: chartData,
-            borderColor: "#00ff99",
-            backgroundColor: "rgba(0,255,153,0.1)",
-            fill: true,
+            borderColor: '#00ff99',
+            backgroundColor: 'rgba(0,255,153,0.1)',
+            fill: true
           }]
         },
         options: {
           responsive: true,
-          plugins: { legend: { labels: { color: "white" } } },
+          plugins: {
+            legend: { labels: { color: 'white' } },
+            annotation: {}
+          },
           scales: {
-            x: { ticks: { color: "white" } },
-            y: { ticks: { color: "white" } }
+            x: { ticks: { color: 'white' } },
+            y: { ticks: { color: 'white' } }
           }
         }
       });
-      drawThresholdLines();
-    }
-
-    function drawThresholdLines() {
-      const basePrice = chartData[chartData.length - 1];
-      const minVal = basePrice * (1 + thresholds.min / 100);
-      const maxVal = basePrice * (1 + thresholds.max / 100);
-      console.log(`Umbrales: ${minVal}, ${maxVal}`);
-    }
-
-    function selectCoin(symbol) {
-      alert("Solo puedes seleccionar una moneda a la vez.");
-      selectedSymbol = symbol;
-      localStorage.setItem("selectedSymbol", symbol);
-      renderChart(symbol);
     }
 
     function openCryptoPopup() {
-      const container = document.getElementById("popup-container");
-      container.innerHTML = `
+      const html = `
         <div class="popup">
           <div class="btn-close" onclick="closePopup()">✖</div>
-          <h3 class="text-lg mb-2">Selecciona una Criptomoneda</h3>
-          <p>Solo puedes seleccionar una moneda</p>
-          <div id="crypto-list"></div>
-        </div>
-      `;
-      fetchTopCoins();
+          <h3 class="mb-2">Selecciona una Criptomoneda</h3>
+          <input id="symbol-input" placeholder="Ej: BTCUSDT" class="w-full p-1 bg-gray-700 text-white" />
+          <button class="btn mt-2" onclick="setSymbol()">Seleccionar</button>
+          <button class="btn" onclick="closePopup()">Cerrar</button>
+        </div>`;
+      document.getElementById('popup-container').innerHTML = html;
     }
 
     function openThresholdPopup() {
-      const container = document.getElementById("popup-container");
-      container.innerHTML = `
+      const html = `
         <div class="popup">
           <div class="btn-close" onclick="closePopup()">✖</div>
-          <h3 class="text-lg mb-2">Configurar Umbrales</h3>
-          <label>Umbral mínimo (%):</label><br>
-          <input id="min-threshold" type="number" value="${thresholds.min}" class="bg-gray-700 text-white w-full mb-2"/><br>
-          <label>Umbral máximo (%):</label><br>
-          <input id="max-threshold" type="number" value="${thresholds.max}" class="bg-gray-700 text-white w-full mb-2"/><br>
+          <h3 class="mb-2">Configura Umbrales (%)</h3>
+          <input id="min-threshold" type="number" value="${thresholds.min}" class="w-full p-1 mb-2 bg-gray-700 text-white" />
+          <input id="max-threshold" type="number" value="${thresholds.max}" class="w-full p-1 mb-2 bg-gray-700 text-white" />
           <button class="btn" onclick="saveThresholds()">Guardar</button>
           <button class="btn" onclick="closePopup()">Cerrar</button>
-        </div>
-      `;
+        </div>`;
+      document.getElementById('popup-container').innerHTML = html;
     }
 
     function saveThresholds() {
-      thresholds.min = parseFloat(document.getElementById("min-threshold").value);
-      thresholds.max = parseFloat(document.getElementById("max-threshold").value);
-      localStorage.setItem("thresholds", JSON.stringify(thresholds));
+      const min = parseFloat(document.getElementById('min-threshold').value);
+      const max = parseFloat(document.getElementById('max-threshold').value);
+      thresholds = { min, max };
+      localStorage.setItem('thresholds', JSON.stringify(thresholds));
       closePopup();
-      renderChart(selectedSymbol);
     }
 
-    function openAlertsPopup() {
-      const container = document.getElementById("popup-container");
-      container.innerHTML = `
-        <div class="popup">
-          <div class="btn-close" onclick="closePopup()">✖</div>
-          <h3 class="text-lg mb-2">Alertas</h3>
-          <p>Activar alertas en tiempo real:</p>
-          <select id="alert-toggle" class="bg-gray-700 text-white w-full mb-2">
-            <option value="yes">Sí</option>
-            <option value="no">No</option>
-          </select>
-          <p>(Alertas por email próximamente)</p>
-          <button class="btn" onclick="closePopup()">Cerrar</button>
-        </div>
-      `;
+    function setSymbol() {
+      const symbol = document.getElementById('symbol-input').value.toUpperCase();
+      if (!symbol) return;
+      selectedSymbol = symbol;
+      localStorage.setItem('selectedSymbol', selectedSymbol);
+      chart.data.datasets[0].label = selectedSymbol;
+      chartData = [];
+      chartLabels = [];
+      closePopup();
     }
 
     function closePopup() {
-      document.getElementById("popup-container").innerHTML = "";
+      document.getElementById('popup-container').innerHTML = '';
     }
 
-    function updateChartPeriodically() {
-      setInterval(async () => {
-        try {
-          const data = await fetchPrice(selectedSymbol);
-          if (chartData.length > 30) chartData.shift();
-          chartData.push(parseFloat(data.lastPrice));
-          chart.data.labels.push(new Date().toLocaleTimeString());
-          chart.data.datasets[0].data = chartData;
-          chart.update();
-        } catch (err) {
-          console.error("Error actualizando gráfico");
-        }
-      }, 5000);
-    }
-
-    fetchTopCoins();
-    renderChart(selectedSymbol);
-    updateChartPeriodically();
+    initChart();
+    setInterval(updateChart, 5000);
+    updateChart();
   </script>
 </body>
 </html>
