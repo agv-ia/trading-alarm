@@ -1,87 +1,93 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<title>Colmillo - Juego Infantil</title>
-<style>
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: skyblue;
-  }
-  canvas {
-    display: block;
-  }
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Colmillo - El Juego</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>*{user-select:none;}</style>
 </head>
-<body>
-<canvas id="juego"></canvas>
-<script>
-const canvas = document.getElementById('juego');
-const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+<body class="bg-gradient-to-b from-lime-100 to-sky-200 flex items-center justify-center min-h-screen overflow-hidden">
+  <div class="flex flex-col items-center">
+    <div id="game" class="relative w-[90vw] max-w-md h-[80vh] bg-white border-4 border-gray-700 rounded-2xl shadow-lg overflow-hidden">
+      <div id="score" class="absolute top-2 left-2 z-10 text-xl font-bold bg-yellow-300 text-black px-4 py-1 rounded shadow">Puntos: 0</div>
+      <img id="colmillo" src="https://static.thenounproject.com/png/1368935-512.png"
+           class="absolute bottom-2 left-1/2 transform -translate-x-1/2 w-16 h-16 rounded-full border-2 border-black"
+           alt="Colmillo el Zorrino"/>
+    </div>
+    <p class="mt-4 text-center text-lg text-gray-700">Usa las flechas para mover a Colmillo 🦨 y atrapa los caracoles 🐌</p>
+  </div>
 
-// Imágenes con CORS correcto
-const zorritoImg = new Image();
-zorritoImg.crossOrigin = "anonymous";
-zorritoImg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Striped_Skunk_in_California_%2815049621872%29.jpg/200px-Striped_Skunk_in_California_%2815049621872%29.jpg';
+  <audio id="catchSound" src="https://cdn.jsdelivr.net/gh/CodeExplainedRepo/Sound-Files/catch.mp3" preload="auto"></audio>
 
-const caracolImg = new Image();
-caracolImg.crossOrigin = "anonymous";
-caracolImg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Helix_pomatia_01_ies.jpg/120px-Helix_pomatia_01_ies.jpg';
+  <script>
+    const game = document.getElementById('game'),
+          colmillo = document.getElementById('colmillo'),
+          scoreDisplay = document.getElementById('score'),
+          catchSound = document.getElementById('catchSound');
+    let colmilloX = game.clientWidth / 2 - colmillo.offsetWidth / 2,
+        keys = {}, score = 0, gameInterval, moveInterval;
 
-// Zorrito
-const zorrito = {
-  x: canvas.width / 2 - 50,
-  y: canvas.height - 120,
-  width: 100,
-  height: 100,
-  dx: 0,
-  speed: 7
-};
+    document.addEventListener('keydown', e => keys[e.key] = true);
+    document.addEventListener('keyup', e => keys[e.key] = false);
 
-// Array de caracoles
-const caracoles = [];
+    function moveColmillo(){
+      const speed = 5, maxX = game.clientWidth - colmillo.offsetWidth;
+      if (keys['ArrowLeft']) colmilloX = Math.max(0, colmilloX - speed);
+      if (keys['ArrowRight']) colmilloX = Math.min(maxX, colmilloX + speed);
+      colmillo.style.left = colmilloX + 'px';
+    }
 
-// Sonido simple (pop)
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function playPopSound() {
-  const oscillator = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-  oscillator.type = 'triangle';
-  oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
-  gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-  oscillator.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  oscillator.start();
-  oscillator.stop(audioCtx.currentTime + 0.1);
-}
+    moveInterval = setInterval(moveColmillo, 20);
 
-// Crear caracoles aleatorios
-function crearCaracol() {
-  const size = Math.random() * 30 + 30;
-  caracoles.push({
-    x: Math.random() * (canvas.width - size),
-    y: -size,
-    size: size,
-    velocidad: Math.random() * 2 + 1
-  });
-}
-setInterval(crearCaracol, 1000);
+    function createSnail(){
+      const snail = document.createElement('img');
+      snail.src = 'https://static.thenounproject.com/png/2503738-512.png';
+      snail.className = 'absolute w-12 h-12';
+      snail.style.left = Math.random() * (game.clientWidth - 48) + 'px';
+      snail.style.top = '0px';
+      game.appendChild(snail);
+      fall(snail);
+    }
 
-// Dibujar fondo con cielo, sol sonriente y nube
-function dibujarFondo() {
-  ctx.fillStyle = 'skyblue';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+    function fall(snail){
+      let top = 0;
+      const interval = setInterval(()=>{
+        top += 2;
+        snail.style.top = top + 'px';
+        const a = snail.getBoundingClientRect(),
+              b = colmillo.getBoundingClientRect();
+        if (a.bottom > b.top && a.top < b.bottom && a.left < b.right && a.right > b.left){
+          clearInterval(interval);
+          snail.remove();
+          catchSound.currentTime = 0;
+          catchSound.play();
+          score++;
+          scoreDisplay.textContent = `Puntos: ${score}`;
+          if (score >= 100) endGame();
+        }
+        if (top > game.clientHeight){
+          clearInterval(interval);
+          snail.remove();
+        }
+      }, 20);
+    }
 
-  // Sol sonriente
-  ctx.beginPath();
-  ctx.arc(100, 100, 50, 0, Math.PI * 2);
-  ctx.fillStyle = 'yellow';
-  ctx.fill();
-  ctx.stroke();
+    function startGame(){
+      colmillo.style.left = colmilloX + 'px';
+      gameInterval = setInterval(createSnail, 900);
+    }
 
-  // O
+    function endGame(){
+      clearInterval(gameInterval);
+      clearInterval(moveInterval);
+      alert('¡Colmillo atrapó 100 caracoles! 🎉');
+      location.reload();
+    }
+
+    startGame();
+  </script>
+</body>
+</html>
 
 
