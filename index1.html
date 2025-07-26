@@ -1,189 +1,343 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading Alarm</title>
-  <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.2/dist/lightweight-charts.standalone.production.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body {
-      background-color: #121212;
-      color: white;
-      font-family: Arial, sans-serif;
-    }
-    .popup {
-      position: fixed;
-      top: 100px;
-      left: 50%;
-      transform: translateX(-50%);
-      background-color: #1f1f1f;
-      padding: 20px;
-      border: 1px solid #333;
-      z-index: 100;
-      width: 300px;
-    }
-    .btn {
-      background-color: #2d2d2d;
-      color: white;
-      padding: 8px 16px;
-      border: none;
-      cursor: pointer;
-      margin: 4px;
-    }
-    .btn:hover {
-      background-color: #444;
-    }
-    .btn-close {
-      float: right;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trading Alarm</title>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.2/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body {
+    background-color: #121212;
+    color: white;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .header {
+    text-align: center;
+    font-size: 1.75rem;
+    font-weight: bold;
+    padding: 1rem 0;
+    border-bottom: 1px solid #333;
+  }
+  .container {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  .left-panel {
+    width: 20%;
+    background: #1f1f1f;
+    padding: 1rem;
+    overflow-y: auto;
+  }
+  .main-panel {
+    flex: 1;
+    background: #181818;
+    padding: 1rem;
+  }
+  .bottom-panel {
+    height: 12.5vh;
+    background: #1f1f1f;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid #333;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn {
+    background-color: #2d2d2d;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .btn:hover {
+    background-color: #444;
+  }
+  .popup {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1f1f1f;
+    padding: 1rem;
+    border: 1px solid #333;
+    z-index: 100;
+    width: 300px;
+    border-radius: 6px;
+  }
+  .btn-close {
+    float: right;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  input[type="number"], input[type="text"] {
+    background-color: #333;
+    border: none;
+    color: white;
+    padding: 0.4rem;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+  }
+</style>
 </head>
 <body>
-  <div class="text-center text-2xl font-bold py-4">Trading Alarm</div>
 
-  <div class="flex h-[85vh]">
-    <!-- Trading Data -->
-    <div class="w-1/5 bg-gray-900 p-2 overflow-y-auto">
-      <h2 class="text-lg font-semibold mb-2">Trading Data</h2>
-      <ul id="coin-list" class="text-sm space-y-1"></ul>
-    </div>
+<div class="header">Trading Alarm</div>
 
-    <!-- Trading Live -->
-    <div class="flex-1 bg-gray-800 p-4">
-      <div id="chart" class="w-full h-full"></div>
-    </div>
+<div class="container">
+  <div class="left-panel">
+    <h2>Trading Data</h2>
+    <ul id="coin-list"></ul>
   </div>
-
-  <!-- Trading Conf -->
-  <div class="h-[12.5vh] bg-gray-900 p-2 flex space-x-4 border-t border-gray-700">
-    <button class="btn" onclick="openCryptoPopup()">Criptomonedas</button>
-    <button class="btn" onclick="openThresholdPopup()">Umbrales</button>
+  <div class="main-panel">
+    <div id="chart" style="height:100%; width:100%;"></div>
   </div>
+</div>
 
-  <div id="popup-container"></div>
+<div class="bottom-panel">
+  <button class="btn" onclick="openCryptoPopup()">Criptomonedas</button>
+  <button class="btn" onclick="openThresholdPopup()">Umbrales</button>
+  <button class="btn" onclick="openAlertsPopup()">Alertas</button>
+</div>
 
-  <script>
-    let selectedSymbol = localStorage.getItem('selectedSymbol') || 'BTCUSDT';
-    let thresholds = JSON.parse(localStorage.getItem('thresholds')) || { min: -2, max: 2 };
-    let chart, candleSeries, upperLineSeries, lowerLineSeries;
+<div id="popup-container"></div>
 
-    function initChart() {
-      chart = LightweightCharts.createChart(document.getElementById('chart'), {
-        layout: {
-          background: { color: '#1e1e1e' },
-          textColor: 'white',
-        },
-        grid: {
-          vertLines: { color: '#444' },
-          horzLines: { color: '#444' },
-        },
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: false,
-        },
-        priceScale: {
-          borderColor: '#666',
-        },
-        width: document.getElementById('chart').clientWidth,
-        height: document.getElementById('chart').clientHeight
-      });
+<script>
+  let selectedSymbol = localStorage.getItem('selectedSymbol') || 'BTCUSDT';
+  let thresholds = JSON.parse(localStorage.getItem('thresholds')) || { min: -2, max: 2 };
+  let alertRealTime = JSON.parse(localStorage.getItem('alertRealTime')) ?? true;
 
-      candleSeries = chart.addCandlestickSeries({
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderUpColor: '#26a69a',
-        borderDownColor: '#ef5350',
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350'
-      });
+  let chart, candleSeries, maxLine, minLine;
+  let latestCandleTime = 0;
 
-      upperLineSeries = chart.addLineSeries({ color: 'green', lineWidth: 1 });
-      lowerLineSeries = chart.addLineSeries({ color: 'red', lineWidth: 1 });
-    }
-
-    async function fetchCandles() {
-      try {
-        const res = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${selectedSymbol}&interval=1m&limit=100`);
-        const formatted = res.data.map(c => ({
-          time: Math.floor(c[0] / 1000),
-          open: parseFloat(c[1]),
-          high: parseFloat(c[2]),
-          low: parseFloat(c[3]),
-          close: parseFloat(c[4])
-        }));
-        candleSeries.setData(formatted);
-        drawThresholdLines(formatted.at(-1));
-      } catch (e) {
-        console.error("Error cargando velas", e);
-      }
-    }
-
-    function drawThresholdLines(lastCandle) {
-      const price = lastCandle.close;
-      const max = price * (1 + thresholds.max / 100);
-      const min = price * (1 + thresholds.min / 100);
-      const time = lastCandle.time;
-
-      upperLineSeries.setData([{ time: time, value: max }]);
-      lowerLineSeries.setData([{ time: time, value: min }]);
-    }
-
-    function openCryptoPopup() {
-      const html = `
-        <div class="popup">
-          <div class="btn-close" onclick="closePopup()">✖</div>
-          <h3 class="mb-2">Selecciona una Criptomoneda</h3>
-          <input id="symbol-input" placeholder="Ej: BTCUSDT" class="w-full p-1 bg-gray-700 text-white" />
-          <button class="btn mt-2" onclick="setSymbol()">Seleccionar</button>
-          <button class="btn" onclick="closePopup()">Cerrar</button>
-        </div>`;
-      document.getElementById('popup-container').innerHTML = html;
-    }
-
-    function openThresholdPopup() {
-      const html = `
-        <div class="popup">
-          <div class="btn-close" onclick="closePopup()">✖</div>
-          <h3 class="mb-2">Configura Umbrales (%)</h3>
-          <input id="min-threshold" type="number" value="${thresholds.min}" class="w-full p-1 mb-2 bg-gray-700 text-white" />
-          <input id="max-threshold" type="number" value="${thresholds.max}" class="w-full p-1 mb-2 bg-gray-700 text-white" />
-          <button class="btn" onclick="saveThresholds()">Guardar</button>
-          <button class="btn" onclick="closePopup()">Cerrar</button>
-        </div>`;
-      document.getElementById('popup-container').innerHTML = html;
-    }
-
-    function saveThresholds() {
-      const min = parseFloat(document.getElementById('min-threshold').value);
-      const max = parseFloat(document.getElementById('max-threshold').value);
-      thresholds = { min, max };
-      localStorage.setItem('thresholds', JSON.stringify(thresholds));
-      closePopup();
-    }
-
-    function setSymbol() {
-      const symbol = document.getElementById('symbol-input').value.toUpperCase();
-      if (!symbol) return;
-      selectedSymbol = symbol;
-      localStorage.setItem('selectedSymbol', selectedSymbol);
-      fetchCandles();
-      closePopup();
-    }
-
-    function closePopup() {
-      document.getElementById('popup-container').innerHTML = '';
-    }
-
-    window.addEventListener('resize', () => {
-      chart.resize(document.getElementById('chart').clientWidth, document.getElementById('chart').clientHeight);
+  function initChart() {
+    const chartContainer = document.getElementById('chart');
+    chart = LightweightCharts.createChart(chartContainer, {
+      layout: {
+        background: { color: '#181818' },
+        textColor: 'white',
+      },
+      grid: {
+        vertLines: { color: '#444' },
+        horzLines: { color: '#444' },
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      priceScale: {
+        borderColor: '#666',
+      },
+      rightPriceScale: { visible: true },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     });
 
+    candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderUpColor: '#26a69a',
+      borderDownColor: '#ef5350',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
+
+    maxLine = chart.addLineSeries({
+      color: '#26a69a',
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+    });
+
+    minLine = chart.addLineSeries({
+      color: '#ef5350',
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+    });
+  }
+
+  async function fetchInitialCandles() {
+    try {
+      const res = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${selectedSymbol}&interval=1m&limit=100`);
+      const data = res.data.map(c => ({
+        time: Math.floor(c[0] / 1000),
+        open: parseFloat(c[1]),
+        high: parseFloat(c[2]),
+        low: parseFloat(c[3]),
+        close: parseFloat(c[4]),
+      }));
+      candleSeries.setData(data);
+      if (data.length > 0) latestCandleTime = data[data.length - 1].time;
+      updateThresholdLines(data[data.length - 1]);
+    } catch (e) {
+      alert("Error al cargar las velas iniciales: " + e.message);
+      console.error(e);
+    }
+  }
+
+  async function fetchLatestCandle() {
+    try {
+      const res = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${selectedSymbol}&interval=1m&limit=1`);
+      const c = res.data[0];
+      const candle = {
+        time: Math.floor(c[0] / 1000),
+        open: parseFloat(c[1]),
+        high: parseFloat(c[2]),
+        low: parseFloat(c[3]),
+        close: parseFloat(c[4]),
+      };
+
+      if (candle.time > latestCandleTime) {
+        candleSeries.update(candle);
+        latestCandleTime = candle.time;
+        updateThresholdLines(candle);
+        checkAlerts(candle.close);
+      }
+    } catch (e) {
+      console.error("Error actualizando vela:", e);
+    }
+  }
+
+  function updateThresholdLines(candle) {
+    const basePrice = candle.close;
+    const maxPrice = basePrice * (1 + thresholds.max / 100);
+    const minPrice = basePrice * (1 + thresholds.min / 100);
+
+    const startTime = candle.time - 3600; // 1 hour before for line span
+
+    maxLine.setData([
+      { time: startTime, value: maxPrice },
+      { time: candle.time + 60, value: maxPrice },
+    ]);
+    minLine.setData([
+      { time: startTime, value: minPrice },
+      { time: candle.time + 60, value: minPrice },
+    ]);
+  }
+
+  function checkAlerts(currentPrice) {
+    const maxPrice = currentPrice / (1 + thresholds.max / 100) * (1 + thresholds.max / 100);
+    const minPrice = currentPrice / (1 + thresholds.min / 100) * (1 + thresholds.min / 100);
+    if (!alertRealTime) return;
+
+    const maxThresholdPrice = currentPrice * (1 + thresholds.max / 100);
+    const minThresholdPrice = currentPrice * (1 + thresholds.min / 100);
+
+    if (currentPrice >= maxThresholdPrice) {
+      alert(`¡Alerta! Precio alcanzó el umbral máximo: ${maxThresholdPrice.toFixed(2)}`);
+    }
+    if (currentPrice <= minThresholdPrice) {
+      alert(`¡Alerta! Precio alcanzó el umbral mínimo: ${minThresholdPrice.toFixed(2)}`);
+    }
+  }
+
+  // Gestión de popups para configuración
+  function openCryptoPopup() {
+    const html = `
+      <div class="popup">
+        <div class="btn-close" onclick="closePopup()">✖</div>
+        <h3>Selecciona una Criptomoneda (Solo 1)</h3>
+        <select id="crypto-select" style="width: 100%; padding: 0.5rem; background:#333; color:white; border:none; border-radius:4px;">
+          <option value="">-- Selecciona --</option>
+          <option value="BTCUSDT" selected>BTC/USDT</option>
+          <option value="ETHUSDT">ETH/USDT</option>
+          <option value="BNBUSDT">BNB/USDT</option>
+          <option value="XRPUSDT">XRP/USDT</option>
+          <option value="ADAUSDT">ADA/USDT</option>
+          <option value="DOGEUSDT">DOGE/USDT</option>
+          <option value="SOLUSDT">SOL/USDT</option>
+          <option value="LTCUSDT">LTC/USDT</option>
+        </select>
+        <button class="btn" style="margin-top:10px;" onclick="selectCrypto()">Seleccionar</button>
+        <button class="btn" onclick="closePopup()">Cerrar</button>
+      </div>`;
+    document.getElementById('popup-container').innerHTML = html;
+  }
+  function selectCrypto() {
+    const sel = document.getElementById('crypto-select').value;
+    if (!sel) {
+      alert("Debes seleccionar una criptomoneda.");
+      return;
+    }
+    selectedSymbol = sel;
+    localStorage.setItem('selectedSymbol', selectedSymbol);
+    closePopup();
     initChart();
-    fetchCandles();
-    setInterval(fetchCandles, 60000); // Actualiza cada minuto
-  </script>
+    fetchInitialCandles();
+  }
+
+  function openThresholdPopup() {
+    const html = `
+      <div class="popup">
+        <div class="btn-close" onclick="closePopup()">✖</div>
+        <h3>Configura Umbrales (%)</h3>
+        <label>Mínimo (%)</label>
+        <input type="number" id="threshold-min" value="${thresholds.min}" />
+        <label>Máximo (%)</label>
+        <input type="number" id="threshold-max" value="${thresholds.max}" />
+        <button class="btn" style="margin-top:10px;" onclick="saveThresholds()">Guardar</button>
+        <button class="btn" onclick="closePopup()">Cerrar</button>
+      </div>`;
+    document.getElementById('popup-container').innerHTML = html;
+  }
+  function saveThresholds() {
+    const min = parseFloat(document.getElementById('threshold-min').value);
+    const max = parseFloat(document.getElementById('threshold-max').value);
+    if (isNaN(min) || isNaN(max)) {
+      alert("Valores inválidos");
+      return;
+    }
+    thresholds.min = min;
+    thresholds.max = max;
+    localStorage.setItem('thresholds', JSON.stringify(thresholds));
+    closePopup();
+    fetchInitialCandles(); // refrescar umbrales con nuevo valor
+  }
+
+  function openAlertsPopup() {
+    const html = `
+      <div class="popup">
+        <div class="btn-close" onclick="closePopup()">✖</div>
+        <h3>Alertas en Tiempo Real</h3>
+        <label>
+          <input type="checkbox" id="alertRealtimeToggle" ${alertRealTime ? "checked" : ""} />
+          Habilitar alertas emergentes
+        </label>
+        <button class="btn" style="margin-top:10px;" onclick="saveAlerts()">Guardar</button>
+        <button class="btn" onclick="closePopup()">Cerrar</button>
+      </div>`;
+    document.getElementById('popup-container').innerHTML = html;
+  }
+  function saveAlerts() {
+    alertRealTime = document.getElementById('alertRealtimeToggle').checked;
+    localStorage.setItem('alertRealTime', JSON.stringify(alertRealTime));
+    closePopup();
+  }
+
+  function closePopup() {
+    document.getElementById('popup-container').innerHTML = '';
+  }
+
+  window.addEventListener('resize', () => {
+    if (chart) {
+      chart.resize(document.getElementById('chart').clientWidth, document.getElementById('chart').clientHeight);
+    }
+  });
+
+  // Inicialización
+  initChart();
+  fetchInitialCandles();
+
+  // Actualizar cada minuto la última vela
+  setInterval(fetchLatestCandle, 60 * 1000);
+
+</script>
+
 </body>
 </html>
