@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src https://api.binance.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src * data:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trading Alarm</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" integrity="sha512-5WLMZAjv4gYJUkC8HJg0zpRk+84Hvlwvx3jTf0Ufp4O9Ig++7CBtA4R4EIPGhbfKFbO+uNkLKVcN7OjAO9AyyA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@3.3.0/dist/chartjs-chart-financial.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
   <style>
@@ -96,6 +97,10 @@
       justify-content: space-between;
       padding: 0.3rem 0;
       border-bottom: 1px solid #333;
+      cursor: pointer;
+    }
+    .crypto-item:hover {
+      background-color: #333;
     }
     .threshold-line {
       position: absolute;
@@ -137,21 +142,22 @@
       </div>
     </div>
   </div>
-
   <div id="popup-container"></div>
   <audio id="beep" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" preload="auto"></audio>
-
   <script>
+    window.addEventListener('error', function(e) {
+      console.error('Global Error:', e);
+    });
+
+    let chart;
     let selectedSymbol = localStorage.getItem('symbol') || 'BTCUSDT';
     let upperThreshold = parseFloat(localStorage.getItem('upperThreshold')) || 2;
     let lowerThreshold = parseFloat(localStorage.getItem('lowerThreshold')) || -2;
     let email = localStorage.getItem('email') || '';
     let alerts = {
       screen: true,
-      email: false,
+      email: false
     };
-
-    let chart;
 
     function openCryptoPopup() {
       const popup = document.createElement('div');
