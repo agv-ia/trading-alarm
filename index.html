@@ -247,9 +247,21 @@
     }
 
     function notifyUser(message) {
-      if (alerts.screen) {
-        if (Notification.permission !== 'granted') Notification.requestPermission();
+     
+        if (alerts.screen) {
+  if (Notification.permission !== 'granted') {
+    Notification.requestPermission().then(permission => {
+      if (permission === "granted") {
         new Notification('Trading Alarm', { body: message });
+      } else {
+        console.log("Notificación bloqueada");
+      }
+    );
+  } else {
+    new Notification('Trading Alarm', { body: message });
+  }
+  document.getElementById('beep').play();
+}
         document.getElementById('beep').play();
       }
     }
