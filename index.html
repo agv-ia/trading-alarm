@@ -1,379 +1,372 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src https://api.binance.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src * data:; media-src 'self' https://www.soundjay.com;">
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Trading Alarm</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@3.3.0/dist/chartjs-chart-financial.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" />
-  <style>
-    * {
-      box-sizing: border-box;
-      font-family: 'Inter', sans-serif;
-    }
-    body {
-      margin: 0;
-      background-color: #1e1e1e;
-      color: #fff;
-      overflow: hidden;
-    }
-    header {
-      text-align: center;
-      font-size: 1.5rem;
-      font-weight: bold;
-      padding: 1rem;
-      background-color: #121212;
-      border-bottom: 1px solid #333;
-    }
-    .container {
-      display: flex;
-      height: calc(100vh - 64px);
-      flex-direction: row;
-    }
-    .sidebar {
-      width: 20%;
-      background-color: #181818;
-      padding: 1rem;
-      border-right: 1px solid #333;
-    }
-    .main {
-      width: 80%;
-      display: flex;
-      flex-direction: column;
-    }
-    .live {
-      flex: 1;
-      background-color: #1e1e1e;
-      padding: 1rem;
-      position: relative;
-    }
-    .config {
-      height: 12.5%;
-      background-color: #121212;
-      display: flex;
-      align-items: flex-start;
-      padding: 0.5rem;
-      gap: 0.5rem;
-      border-top: 1px solid #333;
-    }
-    button {
-      background-color: #333;
-      color: #fff;
-      border: none;
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-    button:hover {
-      background-color: #444;
-    }
-    .popup {
-      position: fixed;
-      top: 20%;
-      left: 50%;
-      transform: translate(-50%, -20%);
-      background: #222;
-      padding: 1rem;
-      border: 1px solid #555;
-      border-radius: 8px;
-      z-index: 1000;
-      max-height: 70vh;
-      overflow-y: auto;
-      width: 300px;
-    }
-    .popup h3 {
-      margin-top: 0;
-    }
-    .popup .close {
-      float: right;
-      cursor: pointer;
-      color: red;
-      font-weight: bold;
-    }
-    .crypto-item {
-      display: flex;
-      justify-content: space-between;
-      padding: 0.3rem 0;
-      border-bottom: 1px solid #333;
-      cursor: pointer;
-    }
-    .crypto-item:hover {
-      background-color: #333;
-    }
-    .notification {
-      position: fixed;
-      top: 1rem;
-      right: 1rem;
-      background: #333;
-      padding: 1rem;
-      border-radius: 6px;
-      box-shadow: 0 0 10px #000;
-      z-index: 2000;
-    }
-    label {
-      display: block;
-      margin-bottom: 0.5rem;
-    }
-    input[type="number"], input[type="email"] {
-      width: 100%;
-      padding: 0.3rem;
-      border-radius: 4px;
-      border: 1px solid #555;
-      background: #222;
-      color: #fff;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self'; 
+  script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; 
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+  font-src https://fonts.gstatic.com; 
+  img-src * data:;
+  media-src 'self' https://www.soundjay.com;
+">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Trading Alarm</title>
+
+<!-- Librerías sin integrity para evitar bloqueo -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@3.3.0/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet" />
+
+<style>
+  * {
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+  }
+  body {
+    margin: 0;
+    background-color: #1e1e1e;
+    color: #fff;
+    overflow: hidden;
+  }
+  header {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 1rem;
+    background-color: #121212;
+    border-bottom: 1px solid #333;
+  }
+  .container {
+    display: flex;
+    height: calc(100vh - 64px);
+    flex-direction: row;
+  }
+  .sidebar {
+    width: 20%;
+    background-color: #181818;
+    padding: 1rem;
+    border-right: 1px solid #333;
+  }
+  .main {
+    width: 80%;
+    display: flex;
+    flex-direction: column;
+  }
+  .live {
+    flex: 1;
+    background-color: #1e1e1e;
+    padding: 1rem;
+    position: relative;
+  }
+  .config {
+    height: 12.5%;
+    background-color: #121212;
+    display: flex;
+    align-items: flex-start;
+    padding: 0.5rem;
+    gap: 0.5rem;
+    border-top: 1px solid #333;
+  }
+  button {
+    background-color: #333;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  button:hover {
+    background-color: #444;
+  }
+  .popup {
+    position: fixed;
+    top: 20%;
+    left: 50%;
+    transform: translate(-50%, -20%);
+    background: #222;
+    padding: 1rem;
+    border: 1px solid #555;
+    border-radius: 8px;
+    z-index: 1000;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .popup h3 {
+    margin-top: 0;
+  }
+  .popup .close {
+    float: right;
+    cursor: pointer;
+    color: red;
+  }
+  .crypto-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+  }
+  .crypto-item:hover {
+    background-color: #333;
+  }
+  .threshold-line {
+    position: absolute;
+    width: 100%;
+    height: 1px;
+    background: red;
+  }
+  .threshold-label {
+    position: absolute;
+    font-size: 0.7rem;
+    color: red;
+  }
+  .notification {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: #333;
+    padding: 1rem;
+    border-radius: 6px;
+    box-shadow: 0 0 10px #000;
+    z-index: 2000;
+  }
+</style>
 </head>
 <body>
-  <header>Trading Alarm</header>
-  <div class="container">
-    <div class="sidebar">
-      <h3>Trading Data</h3>
+<header>Trading Alarm</header>
+<div class="container">
+  <div class="sidebar">
+    <h3>Trading Data</h3>
+  </div>
+  <div class="main">
+    <div class="live">
+      <canvas id="candlestickChart"></canvas>
     </div>
-    <div class="main">
-      <div class="live">
-        <canvas id="candlestickChart"></canvas>
-      </div>
-      <div class="config">
-        <button id="btnCrypto">Criptomonedas</button>
-        <button id="btnThresholds">Umbrales</button>
-        <button id="btnAlerts">Alertas</button>
-      </div>
+    <div class="config">
+      <button onclick="openCryptoPopup()">Criptomonedas</button>
+      <button onclick="openThresholdPopup()">Umbrales</button>
+      <button onclick="openAlertsPopup()">Alertas</button>
     </div>
   </div>
-  <div id="popup-container"></div>
-  <audio id="beep" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" preload="auto"></audio>
+</div>
 
-  <script>
-    let chart;
-    let selectedSymbol = localStorage.getItem('symbol') || 'BTCUSDT';
-    let upperThreshold = parseFloat(localStorage.getItem('upperThreshold')) || 2;
-    let lowerThreshold = parseFloat(localStorage.getItem('lowerThreshold')) || -2;
-    let email = localStorage.getItem('email') || '';
-    let alerts = {
-      screen: true,
-      email: false
-    };
+<div id="popup-container"></div>
 
-    function openCryptoPopup() {
-      const popup = document.createElement('div');
-      popup.className = 'popup';
-      popup.innerHTML = `<span class="close" role="button" aria-label="Cerrar">&times;</span>
-        <h3>Selecciona una criptomoneda</h3>
-        <p>(Solo puedes seleccionar 1)</p>
-        <div id="crypto-list">Cargando monedas populares...</div>`;
-      document.getElementById('popup-container').appendChild(popup);
+<audio id="beep" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" preload="auto"></audio>
 
-      popup.querySelector('.close').addEventListener('click', () => popup.remove());
+<script>
+  window.addEventListener('error', e => console.error('Global Error:', e));
 
-      fetchCryptoList();
+  let chart;
+  let selectedSymbol = localStorage.getItem('symbol') || 'BTCUSDT';
+  let upperThreshold = parseFloat(localStorage.getItem('upperThreshold')) || 2;
+  let lowerThreshold = parseFloat(localStorage.getItem('lowerThreshold')) || -2;
+  let email = localStorage.getItem('email') || '';
+  let alerts = { screen: true, email: false };
+
+  function openCryptoPopup() {
+    const popup = document.createElement('div');
+    popup.className = 'popup';
+    popup.innerHTML = `
+      <span class="close" onclick="this.parentElement.remove()">×</span>
+      <h3>Selecciona una criptomoneda</h3>
+      <p>(Solo puedes seleccionar 1)</p>
+      <div id="crypto-list">Cargando monedas populares...</div>
+    `;
+    document.getElementById('popup-container').appendChild(popup);
+    fetchCryptoList();
+  }
+
+  async function fetchCryptoList() {
+    try {
+      const res = await axios.get('https://api.binance.com/api/v3/ticker/24hr');
+      const popular = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'SOLUSDT', 'XRPUSDT'];
+      const filtered = res.data.filter(item => popular.includes(item.symbol));
+      const list = filtered.map(item => `
+        <div class='crypto-item' onclick="selectSymbol('${item.symbol}')">
+          ${item.symbol} - ${parseFloat(item.lastPrice).toFixed(2)} USDC (${parseFloat(item.priceChangePercent).toFixed(2)}%)
+        </div>
+      `).join('');
+      document.getElementById('crypto-list').innerHTML = list;
+    } catch {
+      document.getElementById('crypto-list').innerHTML = 'Error al cargar. Reintentando...';
+      setTimeout(fetchCryptoList, 3000);
     }
+  }
 
-    async function fetchCryptoList() {
-      try {
-        const res = await axios.get('https://api.binance.com/api/v3/ticker/24hr');
-        const popular = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'SOLUSDT', 'XRPUSDT'];
-        const filtered = res.data.filter(item => popular.includes(item.symbol));
-        const list = filtered.map(item => `
-          <div class='crypto-item' data-symbol='${item.symbol}'>
-            ${item.symbol} - ${parseFloat(item.lastPrice).toFixed(2)} USDC (${parseFloat(item.priceChangePercent).toFixed(2)}%)
-          </div>`).join('');
-        const container = document.getElementById('crypto-list');
-        container.innerHTML = list;
+  function selectSymbol(symbol) {
+    selectedSymbol = symbol;
+    localStorage.setItem('symbol', symbol);
+    document.querySelectorAll('.popup').forEach(p => p.remove());
+    initChart();
+  }
 
-        container.querySelectorAll('.crypto-item').forEach(el => {
-          el.addEventListener('click', () => {
-            selectSymbol(el.getAttribute('data-symbol'));
-          });
-        });
-      } catch (err) {
-        const container = document.getElementById('crypto-list');
-        container.innerHTML = 'Error al cargar. Reintentando...';
-        setTimeout(fetchCryptoList, 3000);
-      }
+  function openThresholdPopup() {
+    const popup = document.createElement('div');
+    popup.className = 'popup';
+    popup.innerHTML = `
+      <span class="close" onclick="this.parentElement.remove()">×</span>
+      <h3>Configura Umbrales</h3>
+      <label>Umbral Inferior (%): <input type='number' id='low' value='${lowerThreshold}'/></label><br/>
+      <label>Umbral Superior (%): <input type='number' id='high' value='${upperThreshold}'/></label><br/><br/>
+      <button onclick='saveThresholds()'>Guardar</button>
+      <button onclick='this.parentElement.remove()'>Cerrar</button>
+    `;
+    document.getElementById('popup-container').appendChild(popup);
+  }
+
+  function saveThresholds() {
+    lowerThreshold = parseFloat(document.getElementById('low').value);
+    upperThreshold = parseFloat(document.getElementById('high').value);
+    localStorage.setItem('lowerThreshold', lowerThreshold);
+    localStorage.setItem('upperThreshold', upperThreshold);
+    document.querySelectorAll('.popup').forEach(p => p.remove());
+  }
+
+  function openAlertsPopup() {
+    const popup = document.createElement('div');
+    popup.className = 'popup';
+    popup.innerHTML = `
+      <span class="close" onclick="this.parentElement.remove()">×</span>
+      <h3>Alertas</h3>
+      <label><input type='checkbox' id='alert-screen' ${alerts.screen ? 'checked' : ''}/> Notificación en pantalla</label><br/>
+      <label><input type='checkbox' id='alert-email' ${alerts.email ? 'checked' : ''}/> Alerta por Email</label><br/>
+      <div id="email-config" style="display: ${alerts.email ? 'block' : 'none'}">
+        <input type="email" id="email" placeholder="Tu email" value="${email}"/>
+        <button onclick="saveEmail()">Guardar Email</button>
+      </div>
+      <button onclick='saveAlerts()'>Guardar</button>
+      <button onclick='this.parentElement.remove()'>Cerrar</button>
+    `;
+    document.getElementById('popup-container').appendChild(popup);
+
+    document.getElementById('alert-email').addEventListener('change', e => {
+      document.getElementById('email-config').style.display = e.target.checked ? 'block' : 'none';
+    });
+  }
+
+  function saveEmail() {
+    email = document.getElementById('email').value;
+    localStorage.setItem('email', email);
+    alert('Email guardado');
+  }
+
+  function saveAlerts() {
+    alerts.screen = document.getElementById('alert-screen').checked;
+    alerts.email = document.getElementById('alert-email').checked;
+    localStorage.setItem('alerts-screen', alerts.screen);
+    localStorage.setItem('alerts-email', alerts.email);
+    document.querySelectorAll('.popup').forEach(p => p.remove());
+  }
+
+  async function fetchCandles() {
+    try {
+      const now = Date.now();
+      const startTime = now - 15 * 60 * 1000; // Últimos 15 minutos
+      const res = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${selectedSymbol}&interval=1m&startTime=${startTime}&limit=15`);
+      return res.data.map(c => ({
+        x: new Date(c[0]),
+        o: parseFloat(c[1]),
+        h: parseFloat(c[2]),
+        l: parseFloat(c[3]),
+        c: parseFloat(c[4]),
+      }));
+    } catch {
+      return [];
     }
+  }
 
-    function selectSymbol(symbol) {
-      selectedSymbol = symbol;
-      localStorage.setItem('symbol', symbol);
-      document.querySelectorAll('.popup').forEach(p => p.remove());
-      initChart();
-    }
-
-    function openThresholdPopup() {
-      const popup = document.createElement('div');
-      popup.className = 'popup';
-      popup.innerHTML = `<span class="close" role="button" aria-label="Cerrar">&times;</span>
-        <h3>Configura Umbrales</h3>
-        <label>Umbral Inferior (%):
-          <input type='number' id='low' value='${lowerThreshold}'/>
-        </label>
-        <label>Umbral Superior (%):
-          <input type='number' id='high' value='${upperThreshold}'/>
-        </label>
-        <button id="saveThresholdBtn">Guardar</button>
-        <button id="closeThresholdBtn">Cerrar</button>`;
-      document.getElementById('popup-container').appendChild(popup);
-
-      popup.querySelector('.close').addEventListener('click', () => popup.remove());
-      popup.querySelector('#closeThresholdBtn').addEventListener('click', () => popup.remove());
-      popup.querySelector('#saveThresholdBtn').addEventListener('click', saveThresholds);
-    }
-
-    function saveThresholds() {
-      const lowInput = document.getElementById('low');
-      const highInput = document.getElementById('high');
-      lowerThreshold = parseFloat(lowInput.value);
-      upperThreshold = parseFloat(highInput.value);
-      localStorage.setItem('lowerThreshold', lowerThreshold);
-      localStorage.setItem('upperThreshold', upperThreshold);
-      document.querySelectorAll('.popup').forEach(p => p.remove());
-    }
-
-    function openAlertsPopup() {
-      const popup = document.createElement('div');
-      popup.className = 'popup';
-      popup.innerHTML = `<span class="close" role="button" aria-label="Cerrar">&times;</span>
-        <h3>Alertas</h3>
-        <label><input type="checkbox" id="screenAlert" ${alerts.screen ? 'checked' : ''}/> Alerta en pantalla</label>
-        <label><input type="checkbox" id="emailAlert" ${alerts.email ? 'checked' : ''}/> Alerta por email</label>
-        <label>Email: <input type="email" id="emailInput" value="${email}" placeholder="tuemail@ejemplo.com"/></label>
-        <button id="testEmailBtn">Enviar email de prueba</button>
-        <button id="saveAlertsBtn">Guardar</button>
-        <button id="closeAlertsBtn">Cerrar</button>`;
-      document.getElementById('popup-container').appendChild(popup);
-
-      popup.querySelector('.close').addEventListener('click', () => popup.remove());
-      popup.querySelector('#closeAlertsBtn').addEventListener('click', () => popup.remove());
-      popup.querySelector('#saveAlertsBtn').addEventListener('click', saveAlerts);
-      popup.querySelector('#testEmailBtn').addEventListener('click', sendTestEmail);
-    }
-
-    function saveAlerts() {
-      const screenAlert = document.getElementById('screenAlert').checked;
-      const emailAlert = document.getElementById('emailAlert').checked;
-      const emailInput = document.getElementById('emailInput').value.trim();
-      alerts.screen = screenAlert;
-      alerts.email = emailAlert;
-      email = emailInput;
-      localStorage.setItem('email', email);
-      document.querySelectorAll('.popup').forEach(p => p.remove());
-    }
-
-    async function sendTestEmail() {
-      if (!email) {
-        alert('Por favor, introduce un email válido.');
-        return;
-      }
-      alert('Funcionalidad de envío de email no implementada.');
-    }
-
-    function playBeep() {
-      const beep = document.getElementById('beep');
-      beep.currentTime = 0;
-      beep.play();
-    }
-
-    function notify(message) {
-      if (alerts.screen) {
-        const notification = document.createElement('div');
-        notification.className = 'notification';
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 5000);
-      }
-      if (alerts.email) {
-        console.log(`Enviar email a ${email}: ${message}`);
-      }
-    }
-
-    async function fetchCandles(symbol) {
-      try {
-        const response = await axios.get(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&limit=30`);
-        return response.data.map(candle => ({
-          x: new Date(candle[0]),
-          o: parseFloat(candle[1]),
-          h: parseFloat(candle[2]),
-          l: parseFloat(candle[3]),
-          c: parseFloat(candle[4])
-        }));
-      } catch (error) {
-        console.error('Error fetching candles:', error);
-        return [];
-      }
-    }
-
-    async function initChart() {
+  async function updateChart() {
+    const candles = await fetchCandles();
+    if (!candles.length) return;
+    const last = candles[candles.length - 1];
+    if (!chart) {
       const ctx = document.getElementById('candlestickChart').getContext('2d');
-      if (chart) chart.destroy();
-
-      const data = await fetchCandles(selectedSymbol);
-
       chart = new Chart(ctx, {
         type: 'candlestick',
         data: {
           datasets: [{
             label: selectedSymbol,
-            data
-          }]
+            data: candles,
+            color: {
+              up: '#4caf50',
+              down: '#f44336',
+              unchanged: '#999',
+            },
+          }],
         },
         options: {
+          responsive: true,
           animation: false,
           scales: {
             x: {
-              type: 'time',
               time: {
-                tooltipFormat: 'MMM dd, HH:mm'
-              }
+                unit: 'minute',
+                tooltipFormat: 'HH:mm',
+              },
+              ticks: {
+                source: 'auto',
+              },
             },
             y: {
-              beginAtZero: false
-            }
+              beginAtZero: false,
+            },
           },
           plugins: {
-            legend: { display: true }
-          }
-        }
+            legend: { display: false },
+            tooltip: {
+              enabled: true,
+            },
+          },
+        },
       });
-    }
-
-    async function checkThresholds() {
-      if (!chart) return;
-      const dataPoints = chart.data.datasets[0].data;
-      if (dataPoints.length < 2) return;
-
-      const lastCandle = dataPoints[dataPoints.length - 1];
-      const prevCandle = dataPoints[dataPoints.length - 2];
-
-      const changePercent = ((lastCandle.c - prevCandle.c) / prevCandle.c) * 100;
-
-      if (changePercent >= upperThreshold) {
-        playBeep();
-        notify(`Subida fuerte: +${changePercent.toFixed(2)}% en ${selectedSymbol}`);
-      } else if (changePercent <= lowerThreshold) {
-        playBeep();
-        notify(`Bajada fuerte: ${changePercent.toFixed(2)}% en ${selectedSymbol}`);
-      }
-    }
-
-    async function refreshData() {
-      const newData = await fetchCandles(selectedSymbol);
-      if (!chart) return;
-      chart.data.datasets[0].data = newData;
+    } else {
+      chart.data.datasets[0].data = candles;
+      chart.options.plugins.title = {text: selectedSymbol};
       chart.update();
-      await checkThresholds();
     }
 
-    document.getElementById('btnCrypto').addEventListener('click', openCryptoPopup);
-    document.getElementById('btnThresholds').addEventListener('click', openThresholdPopup);
-    document.getElementById('btnAlerts').addEventListener('click', openAlertsPopup);
+    // Control de alertas (simple ejemplo: porcentaje cambio de último cierre)
+    const firstPrice = candles[0].c;
+    const lastPrice = last.c;
+    const changePercent = ((lastPrice - firstPrice) / firstPrice) * 100;
 
-    initChart();
-    setInterval(refreshData, 60000);
-  </script>
+    if (changePercent >= upperThreshold) {
+      showNotification(`📈 ${selectedSymbol} subió +${changePercent.toFixed(2)}%`, true);
+    } else if (changePercent <= lowerThreshold) {
+      showNotification(`📉 ${selectedSymbol} bajó ${changePercent.toFixed(2)}%`, true);
+    }
+  }
+
+  function showNotification(message, playSound = false) {
+    if (!alerts.screen) return;
+    const n = document.createElement('div');
+    n.className = 'notification';
+    n.textContent = message;
+    document.body.appendChild(n);
+    setTimeout(() => n.remove(), 5000);
+    if (playSound) {
+      const beep = document.getElementById('beep');
+      beep.play();
+    }
+  }
+
+  function initChart() {
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+    updateChart();
+  }
+
+  setInterval(updateChart, 15000);
+
+  window.onload = initChart;
+</script>
+
 </body>
 </html>
