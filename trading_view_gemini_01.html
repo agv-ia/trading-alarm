@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Alarm</title>
+    <!-- Tailwind CSS desde CDN para estilos. Nota: La consola muestra una advertencia sobre el uso en producción, pero para un solo archivo HTML es la forma más sencilla. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .popup { display: none; }
+        .popup.open { display: flex; }
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-left-color: #fff;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .trading-live-container {
+            position: relative;
+        }
+        .overlay-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            z-index: 100;
+        }
+        .pop-up-button-glow {
+            background-color: #111827;
+            border: 1px solid #374151;
+            box-shadow: 0 0 5px #1c64f2;
+        }
+        /* Estilo para los botones de rango de tiempo activos */
+        .timeframe-button.active {
+            background-color: #1c64f2;
+            color: #ffffff;
+            font-weight: bold;
+        }
+    </style>
+    <!-- Lightweight Charts para los gráficos de velas. -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- Tone.js para el sonido de la alerta -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col">
+
+    <!-- Header / Título -->
+    <header class="text-center py-4 bg-gray-900 border-b border-gray-800">
+        <h1 class="text-3xl font-bold tracking-wide">Trading Alarm</h1>
+    </header>
+
+    <!-- Contenedor principal de la aplicación -->
+    <main class="flex-1 flex flex-row">
+
+        <!-- Sección lateral izquierda: Trading Data -->
+        <aside id="trading-data" class="w-1/5 bg-gray-900 p-4 border-r border-gray-800 flex flex-col">
+            <h2 class="text-xl font-bold mb-4 text-center text-blue-500">Trading Data</h2>
+            <div id="selected-currency-info" class="p-2 bg-gray-800 rounded-lg shadow-inner">
+                <p class="text-sm">Moneda: <span id="info-symbol" class="font-semibold">BTCUSDT</span></p>
+                <p class="text-sm">Precio Actual: <span id="info-price" class="font-semibold text-green-400">--</span></p>
+                <p class="text-sm">Umbral Máx: <span id="info-max-threshold" class="font-semibold text-red-400">--</span></p>
+                <p class="text-sm">Umbral Mín: <span id="info-min-threshold" class="font-semibold text-green-400">--</span></p>
+            </div>
+        </aside>
+
+        <!-- Contenedor principal de gráficos y configuración -->
+        <div class="flex-1 flex flex-col">
+
+            <!-- Sección principal: Trading Live (Gráfico) -->
+            <section id="trading-live" class="flex-1 bg-gray-950 p-4 relative trading-live-container">
+                <div id="chart-container" class="w-full h-full"></div>
+                <div id="chart-loading" class="overlay-message text-center">
+                    <div class="loader mx-auto mb-2"></div>
+                    <p>Cargando datos del mercado...</p>
+                </div>
+                <div id="chart-error" class="overlay-message text-red-400 hidden">
+                    <p>Error de conexión. Reintentando...</p>
+                </div>
+            </section>
+
+            <!-- Sección inferior: Trading Conf -->
+            <section id="trading-conf" class="h-24 bg-gray-900 p-4 border-t border-gray-800 flex items-center justify-between">
+                <h2 class="text-xl font-bold mr-4">Configuración:</h2>
+                <div class="flex space-x-4">
+                    <button onclick="openCryptoPopup()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">Criptomonedas</button>
+                    <button onclick="openThresholdsPopup()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">Umbrales</button>
+                    <button onclick="openAlertsPopup()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">Alertas</button>
+                </div>
+                
+                <!-- Contenedor para la selección de rango de tiempo -->
+                <div class="flex items-center space-x-2 ml-auto">
+                    <span class="text-sm">Rango de Tiempo:</span>
+                    <button id="timeframe-1m" class="timeframe-button px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-sm transition-colors duration-200" onclick="changeTimeframe('1m')">1m</button>
+                    <button id="timeframe-5m" class="timeframe-button px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-sm transition-colors duration-200" onclick="changeTimeframe('5m')">5m</button>
+                    <button id="timeframe-15m" class="timeframe-button px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-sm transition-colors duration-200" onclick="changeTimeframe('15m')">15m</button>
+                    <button id="timeframe-1h" class="timeframe-button px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-sm transition-colors duration-200 active" onclick="changeTimeframe('1h')">1h</button>
+                    <button id="timeframe-4h" class="timeframe-button px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-sm transition-colors duration-200" onclick="changeTimeframe('4h')">4h</button>
+                    <button id="timeframe-1d" class="timeframe-button px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-sm transition-colors duration-200" onclick="changeTimeframe('1d')">1d</button>
+                </div>
+            </section>
+        </div>
+    </main>
+    
+    <!-- Pop-up de Criptomonedas -->
+    <div id="crypto-popup" class="popup fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50">
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-md mx-4">
+            <h3 class="text-xl font-bold mb-4 text-center">Seleccionar Criptomoneda</h3>
+            <div id="crypto-list" class="max-h-80 overflow-y-auto mb-4 bg-gray-700 p-2 rounded-lg">
+                <!-- La lista de criptomonedas se generará aquí con JavaScript -->
+                <div class="loader mx-auto my-4"></div>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button onclick="closePopup('crypto-popup')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors duration-200">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pop-up de Umbrales -->
+    <div id="thresholds-popup" class="popup fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50">
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+            <h3 class="text-xl font-bold mb-4 text-center">Configurar Umbrales</h3>
+            <div class="space-y-4">
+                <div>
+                    <label for="max-threshold" class="block text-sm font-medium text-gray-300">Umbral Superior (%)</label>
+                    <input type="number" id="max-threshold" class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500" value="2" step="0.1">
+                </div>
+                <div>
+                    <label for="min-threshold" class="block text-sm font-medium text-gray-300">Umbral Inferior (%)</label>
+                    <input type="number" id="min-threshold" class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500" value="-2" step="0.1">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-2">
+                <button onclick="saveThresholds()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors duration-200">Guardar</button>
+                <button onclick="closePopup('thresholds-popup')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors duration-200">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pop-up de Alertas -->
+    <div id="alerts-popup" class="popup fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center z-50">
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+            <h3 class="text-xl font-bold mb-4 text-center">Configurar Alertas</h3>
+            <div class="flex items-center justify-between">
+                <label for="screen-alert" class="text-gray-300">Alertas en pantalla</label>
+                <input type="checkbox" id="screen-alert" class="form-checkbox h-5 w-5 text-blue-600 rounded">
+            </div>
+            <div class="mt-6 flex justify-end space-x-2">
+                <button onclick="requestNotificationPermission()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors duration-200">Solicitar Permisos</button>
+                <button onclick="saveAlerts()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-full transition-colors duration-200">Guardar</button>
+                <button onclick="closePopup('alerts-popup')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full transition-colors duration-200">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensaje de notificación personalizada -->
+    <div id="custom-notification" class="fixed top-4 right-4 bg-blue-600 text-white p-4 rounded-lg shadow-lg hidden z-50">
+        <p id="notification-message"></p>
+        <button onclick="document.getElementById('custom-notification').style.display='none'" class="absolute top-1 right-2 text-white text-lg font-bold">&times;</button>
+    </div>
+
+    <script>
+        // Declaración de variables globales
+        let chart;
+        let candleSeries;
+        let maxThresholdLine, minThresholdLine;
+        let ws;
+        let lastPrice = 0;
+        let lastCandle = null;
+        let chartTimeframe = '1h'; // Variable para el rango de tiempo
+
+        const BINANCE_API_URL = 'https://api.binance.com/api/v3';
+        const BINANCE_WS_URL = 'wss://stream.binance.com:9443/ws';
+        const RECONNECT_INTERVAL = 5000; // 5 segundos
+        let retryCount = 0;
+
+        // Tono de la alerta. Se inicializará la primera vez que se necesite, tras un clic del usuario.
+        let synth = null;
+        let isToneStarted = false;
+
+        // Configuración inicial por defecto
+        let state = {
+            symbol: 'BTCUSDT',
+            maxThreshold: 2,
+            minThreshold: -2,
+            maxThresholdValue: null,
+            minThresholdValue: null,
+            alertsEnabled: true,
+            alertSoundEnabled: true,
+        };
+
+        // --- Funciones de Utilidad ---
+        function saveState() {
+            localStorage.setItem('tradingAlarmState', JSON.stringify(state));
+        }
+
+        function loadState() {
+            const savedState = localStorage.getItem('tradingAlarmState');
+            if (savedState) {
+                state = JSON.parse(savedState);
+            }
+        }
+
+        function showMessage(message, type = 'info', duration = 3000) {
+            const notificationDiv = document.getElementById('custom-notification');
+            const messageP = document.getElementById('notification-message');
+            messageP.textContent = message;
+            notificationDiv.style.display = 'block';
+            
+            if (type === 'error') {
+                notificationDiv.className = "fixed top-4 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-50";
+            } else if (type === 'success') {
+                notificationDiv.className = "fixed top-4 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg z-50";
+            } else {
+                notificationDiv.className = "fixed top-4 right-4 bg-blue-600 text-white p-4 rounded-lg shadow-lg z-50";
+            }
+
+            setTimeout(() => {
+                notificationDiv.style.display = 'none';
+            }, duration);
+        }
+
+        function playBeep() {
+            if (state.alertsEnabled && state.alertSoundEnabled) {
+                if (!isToneStarted) {
+                    // Iniciar el contexto de audio con la primera interacción del usuario
+                    Tone.start().then(() => {
+                        synth = new Tone.Synth().toDestination();
+                        isToneStarted = true;
+                        synth.triggerAttackRelease("C4", "8n");
+                    });
+                } else {
+                    synth.triggerAttackRelease("C4", "8n");
+                }
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('info-symbol').textContent = state.symbol;
+            document.getElementById('info-max-threshold').textContent = state.maxThreshold ? `+${state.maxThreshold}%` : 'N/A';
+            document.getElementById('info-min-threshold').textContent = state.minThreshold ? `${state.minThreshold}%` : 'N/A';
+            document.getElementById('max-threshold').value = state.maxThreshold;
+            document.getElementById('min-threshold').value = state.minThreshold;
+            document.getElementById('screen-alert').checked = state.alertsEnabled;
+        }
+
+        // --- Gráfico y Datos ---
+        function initChart() {
+            if (chart) {
+                chart.remove();
+            }
+            const container = document.getElementById('chart-container');
+            if (!container) {
+                console.error("Elemento contenedor del gráfico no encontrado!");
+                return;
+            }
+
+            chart = LightweightCharts.createChart(container, {
+                width: container.offsetWidth,
+                height: container.offsetHeight,
+                layout: {
+                    backgroundColor: '#111827',
+                    textColor: '#D1D5DB',
+                },
+                grid: {
+                    vertLines: { color: 'rgba(55, 65, 81, 0.5)' },
+                    horzLines: { color: 'rgba(55, 65, 81, 0.5)' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                priceScale: {
+                    borderColor: '#4B5563',
+                },
+                timeScale: {
+                    borderColor: '#4B5563',
+                },
+            });
+
+            if (chart) {
+                candleSeries = chart.addCandlestickSeries({
+                    upColor: '#16a34a',
+                    downColor: '#ef4444',
+                    borderDownColor: '#ef4444',
+                    borderUpColor: '#16a34a',
+                    wickDownColor: '#ef4444',
+                    wickUpColor: '#16a34a',
+                });
+            } else {
+                console.error("No se pudo crear la instancia del gráfico.");
+            }
+
+            // Manejar redimensionamiento de la ventana
+            new ResizeObserver(entries => {
+                if (entries.length === 0 || entries[0].target !== container) {
+                    return;
+                }
+                const newRect = entries[0].contentRect;
+                chart.applyOptions({ height: newRect.height, width: newRect.width });
+            }).observe(container);
+        }
+
+        function drawThresholdLines() {
+            // Limpiar líneas existentes
+            if (maxThresholdLine) { chart.removeSeries(maxThresholdLine); }
+            if (minThresholdLine) { chart.removeSeries(minThresholdLine); }
+
+            // Solo dibujar si hay datos en el gráfico
+            if (candleSeries.data().length > 0 && state.maxThresholdValue !== null && state.minThresholdValue !== null) {
+                maxThresholdLine = chart.addLineSeries({
+                    color: '#ef4444',
+                    lineWidth: 1,
+                    priceScaleId: 'right',
+                });
+                maxThresholdLine.setData([{ value: state.maxThresholdValue, time: candleSeries.data().at(-1).time }]);
+                maxThresholdLine.applyOptions({
+                    title: `Umbral Máx: ${state.maxThresholdValue.toFixed(2)} (${state.maxThreshold}%)`,
+                });
+
+                minThresholdLine = chart.addLineSeries({
+                    color: '#16a34a',
+                    lineWidth: 1,
+                    priceScaleId: 'right',
+                });
+                minThresholdLine.setData([{ value: state.minThresholdValue, time: candleSeries.data().at(-1).time }]);
+                minThresholdLine.applyOptions({
+                    title: `Umbral Mín: ${state.minThresholdValue.toFixed(2)} (${state.minThreshold}%)`,
+                });
+            }
+        }
+
+        async function fetchInitialData(symbol, timeframe) {
+            document.getElementById('chart-loading').classList.remove('hidden');
+            const url = `${BINANCE_API_URL}/klines?symbol=${symbol}&interval=${timeframe}&limit=1000`;
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Error al obtener datos');
+                const data = await response.json();
+                
+                const formattedData = data.map(d => ({
+                    time: d[0] / 1000,
+                    open: parseFloat(d[1]),
+                    high: parseFloat(d[2]),
+                    low: parseFloat(d[3]),
+                    close: parseFloat(d[4]),
+                }));
+                
+                candleSeries.setData(formattedData);
+                
+                if (formattedData.length > 0) {
+                    lastPrice = formattedData.at(-1).close;
+                    document.getElementById('info-price').textContent = `${lastPrice.toFixed(2)} USDT`;
+                    
+                    // Calcular umbrales basados en el precio actual al inicio
+                    const initialPrice = lastPrice;
+                    state.maxThresholdValue = initialPrice * (1 + state.maxThreshold / 100);
+                    state.minThresholdValue = initialPrice * (1 + state.minThreshold / 100);
+                    drawThresholdLines();
+                } else {
+                    console.warn("No se recibieron datos para el par de trading.");
+                }
+                
+                document.getElementById('chart-loading').classList.add('hidden');
+                document.getElementById('chart-error').classList.add('hidden');
+                retryCount = 0;
+                
+            } catch (error) {
+                console.error("Error fetching initial data:", error);
+                document.getElementById('chart-error').classList.remove('hidden');
+                // Reintentar con un backoff exponencial
+                retryCount++;
+                setTimeout(() => fetchInitialData(symbol, timeframe), RECONNECT_INTERVAL * Math.pow(2, retryCount));
+            }
+        }
+
+        function connectWebSocket(symbol, timeframe) {
+            if (ws) {
+                ws.close();
+            }
+            const stream = `${symbol.toLowerCase()}@kline_${timeframe}`;
+            ws = new WebSocket(`${BINANCE_WS_URL}/${stream}`);
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                if (message.e === 'kline') {
+                    const kline = message.k;
+                    const newCandle = {
+                        time: kline.t / 1000,
+                        open: parseFloat(kline.o),
+                        high: parseFloat(kline.h),
+                        low: parseFloat(kline.l),
+                        close: parseFloat(kline.c),
+                    };
+
+                    candleSeries.update(newCandle);
+                    lastPrice = newCandle.close;
+                    document.getElementById('info-price').textContent = `${lastPrice.toFixed(2)} USDT`;
+                    checkThresholds(lastPrice);
+                }
+            };
+
+            ws.onclose = (event) => {
+                console.log('WebSocket desconectado (comportamiento normal al cambiar de moneda/rango):', event.reason);
+                if (!event.wasClean) {
+                    document.getElementById('chart-error').classList.remove('hidden');
+                    setTimeout(() => connectWebSocket(symbol, timeframe), RECONNECT_INTERVAL);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                ws.close();
+            };
+        }
+
+        function changeSymbol(newSymbol) {
+            state.symbol = newSymbol;
+            saveState();
+            updateUI();
+            
+            // Cerrar la conexión WebSocket existente antes de cargar nuevos datos
+            if (ws) {
+                ws.close();
+            }
+            
+            // Re-inicializar el gráfico y los datos para la nueva moneda
+            initChart(); // Vuelve a crear el gráfico, esencial para el cambio de moneda
+            fetchInitialData(state.symbol, chartTimeframe);
+            connectWebSocket(state.symbol, chartTimeframe);
+        }
+
+        // --- Funciones para manejar el rango de tiempo ---
+        function updateTimeframeUI(activeTimeframe) {
+            const buttons = document.querySelectorAll('.timeframe-button');
+            buttons.forEach(button => {
+                button.classList.remove('active');
+            });
+            const activeButton = document.getElementById(`timeframe-${activeTimeframe}`);
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+        }
+
+        function changeTimeframe(newTimeframe) {
+            // No hacer nada si ya estamos en este rango de tiempo
+            if (chartTimeframe === newTimeframe) return;
+
+            chartTimeframe = newTimeframe;
+            updateTimeframeUI(newTimeframe);
+            
+            // Cerrar la conexión WebSocket existente para abrir una nueva con el nuevo rango
+            if (ws) {
+                ws.close();
+            }
+
+            // Actualizar el gráfico con los datos del nuevo rango y establecer una nueva conexión
+            fetchInitialData(state.symbol, chartTimeframe);
+            connectWebSocket(state.symbol, chartTimeframe);
+        }
+
+        // --- Alertas y Umbrales ---
+        function checkThresholds(currentPrice) {
+            if (!state.alertsEnabled || state.maxThresholdValue === null || state.minThresholdValue === null) return;
+            
+            if (currentPrice > state.maxThresholdValue) {
+                triggerAlert(`¡Alerta! ${state.symbol} ha superado el umbral superior de +${state.maxThreshold}%. Precio: ${currentPrice.toFixed(2)}`);
+            } else if (currentPrice < state.minThresholdValue) {
+                triggerAlert(`¡Alerta! ${state.symbol} ha caído por debajo del umbral inferior de ${state.minThreshold}%. Precio: ${currentPrice.toFixed(2)}`);
+            }
+        }
+        
+        function triggerAlert(message) {
+            if (state.alertsEnabled) {
+                // Notificación del navegador
+                if (Notification.permission === 'granted') {
+                    new Notification('Trading Alarm', { body: message });
+                } else {
+                    // Si no hay permisos, mostrar notificación personalizada en pantalla
+                    showMessage(message, 'warning', 10000);
+                }
+                playBeep();
+            }
+        }
+        
+        function requestNotificationPermission() {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    showMessage('Permisos de notificación concedidos.', 'success');
+                } else {
+                    showMessage('Permisos de notificación denegados. Las alertas aparecerán en pantalla.', 'error');
+                }
+            });
+        }
+        
+        // --- Pop-ups y Botones ---
+        function closePopup(id) {
+            document.getElementById(id).classList.remove('open');
+        }
+
+        async function openCryptoPopup() {
+            const popup = document.getElementById('crypto-popup');
+            const cryptoListDiv = document.getElementById('crypto-list');
+            cryptoListDiv.innerHTML = '<div class="loader mx-auto my-4"></div>';
+            popup.classList.add('open');
+
+            const popularSymbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT', 'DOGEUSDT', 'DOTUSDT', 'LTCUSDT', 'LINKUSDT'];
+            
+            try {
+                const response = await fetch(`${BINANCE_API_URL}/ticker/24hr`);
+                if (!response.ok) throw new Error('Error al obtener datos de monedas');
+                const tickers = await response.json();
+                
+                const filteredTickers = tickers.filter(t => popularSymbols.includes(t.symbol));
+                
+                cryptoListDiv.innerHTML = ''; // Limpiar loader
+                
+                filteredTickers.forEach(ticker => {
+                    const priceChangePercent = parseFloat(ticker.priceChangePercent).toFixed(2);
+                    const isPositive = priceChangePercent > 0;
+                    const priceColor = isPositive ? 'text-green-400' : 'text-red-400';
+                    const sign = isPositive ? '+' : '';
+
+                    const listItem = document.createElement('div');
+                    listItem.className = `p-3 rounded-lg flex justify-between items-center cursor-pointer mb-2 transition-colors duration-200 hover:bg-gray-600 ${ticker.symbol === state.symbol ? 'pop-up-button-glow' : 'bg-gray-800'}`;
+                    listItem.onclick = () => {
+                        changeSymbol(ticker.symbol);
+                        closePopup('crypto-popup');
+                    };
+                    listItem.innerHTML = `
+                        <div class="flex-1">
+                            <span class="font-bold">${ticker.symbol}</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="block">${parseFloat(ticker.lastPrice).toFixed(2)} USDT</span>
+                            <span class="text-xs ${priceColor}">${sign}${priceChangePercent}%</span>
+                        </div>
+                    `;
+                    cryptoListDiv.appendChild(listItem);
+                });
+
+            } catch (error) {
+                console.error("Error fetching crypto list:", error);
+                cryptoListDiv.innerHTML = '<p class="text-red-400 text-center">Error al cargar la lista de criptomonedas. Por favor, reintenta.</p>';
+            }
+        }
+
+        function openThresholdsPopup() {
+            document.getElementById('thresholds-popup').classList.add('open');
+            document.getElementById('max-threshold').value = state.maxThreshold;
+            document.getElementById('min-threshold').value = state.minThreshold;
+        }
+
+        function saveThresholds() {
+            const newMax = parseFloat(document.getElementById('max-threshold').value);
+            const newMin = parseFloat(document.getElementById('min-threshold').value);
+            
+            if (isNaN(newMax) || isNaN(newMin)) {
+                showMessage('Por favor, introduce valores numéricos válidos.', 'error');
+                return;
+            }
+
+            state.maxThreshold = newMax;
+            state.minThreshold = newMin;
+            
+            // Recalcular el valor de los umbrales con el precio actual
+            state.maxThresholdValue = lastPrice * (1 + newMax / 100);
+            state.minThresholdValue = lastPrice * (1 + newMin / 100);
+            
+            saveState();
+            updateUI();
+            drawThresholdLines();
+            closePopup('thresholds-popup');
+            showMessage('Umbrales guardados con éxito.', 'success');
+        }
+        
+        function openAlertsPopup() {
+            document.getElementById('alerts-popup').classList.add('open');
+            document.getElementById('screen-alert').checked = state.alertsEnabled;
+        }
+
+        function saveAlerts() {
+            state.alertsEnabled = document.getElementById('screen-alert').checked;
+            saveState();
+            updateUI();
+            closePopup('alerts-popup');
+            showMessage('Configuración de alertas guardada con éxito.', 'success');
+        }
+
+        // --- Inicialización del programa ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            updateUI();
+            initChart();
+            updateTimeframeUI(chartTimeframe);
+            
+            // Configuración por defecto si no hay nada guardado
+            if (!state.symbol) {
+                state = {
+                    symbol: 'BTCUSDT',
+                    maxThreshold: 2,
+                    minThreshold: -2,
+                    maxThresholdValue: null,
+                    minThresholdValue: null,
+                    alertsEnabled: true,
+                    alertSoundEnabled: true,
+                };
+                saveState();
+            }
+
+            fetchInitialData(state.symbol, chartTimeframe);
+            connectWebSocket(state.symbol, chartTimeframe);
+        });
+
+    </script>
+</body>
+</html>
